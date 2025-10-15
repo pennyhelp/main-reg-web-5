@@ -9,18 +9,11 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Pencil, Trash2, Plus } from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-interface Program {
+interface Subcategory {
   id: string;
   category_id: string;
-  subcategory_id: string | null;
   name_english: string;
   name_malayalam: string;
   description: string | null;
@@ -34,23 +27,14 @@ interface Category {
   name_malayalam: string;
 }
 
-interface Subcategory {
-  id: string;
-  category_id: string;
-  name_english: string;
-  name_malayalam: string;
-}
-
-const ProgramsTab = () => {
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+const SubcategoriesTab = () => {
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  const [editingSubcategory, setEditingSubcategory] = useState<Subcategory | null>(null);
   const [formData, setFormData] = useState({
     category_id: '',
-    subcategory_id: '',
     name_english: '',
     name_malayalam: '',
     description: '',
@@ -60,18 +44,12 @@ const ProgramsTab = () => {
 
   useEffect(() => {
     fetchCategories();
-    fetchPrograms();
+    fetchSubcategories();
   }, []);
-
-  useEffect(() => {
-    if (formData.category_id) {
-      fetchSubcategories(formData.category_id);
-    }
-  }, [formData.category_id]);
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('categories')
         .select('id, name_english, name_malayalam')
         .eq('is_active', true)
@@ -85,13 +63,12 @@ const ProgramsTab = () => {
     }
   };
 
-  const fetchSubcategories = async (categoryId: string) => {
+  const fetchSubcategories = async () => {
     try {
       const { data, error } = await (supabase as any)
         .from('subcategories')
-        .select('id, category_id, name_english, name_malayalam')
-        .eq('category_id', categoryId)
-        .eq('is_active', true)
+        .select('*')
+        .order('category_id')
         .order('display_order');
 
       if (error) throw error;
@@ -99,22 +76,6 @@ const ProgramsTab = () => {
     } catch (error) {
       console.error('Error fetching subcategories:', error);
       toast.error('Failed to load subcategories');
-    }
-  };
-
-  const fetchPrograms = async () => {
-    try {
-      const { data, error } = await (supabase as any)
-        .from('programs')
-        .select('*')
-        .order('subcategory_id')
-        .order('display_order');
-
-      if (error) throw error;
-      setPrograms(data || []);
-    } catch (error) {
-      console.error('Error fetching programs:', error);
-      toast.error('Failed to load programs');
     } finally {
       setLoading(false);
     }
@@ -123,15 +84,13 @@ const ProgramsTab = () => {
   const resetForm = () => {
     setFormData({
       category_id: '',
-      subcategory_id: '',
       name_english: '',
       name_malayalam: '',
       description: '',
       display_order: 0,
       is_active: true,
     });
-    setSubcategories([]);
-    setEditingProgram(null);
+    setEditingSubcategory(null);
   };
 
   const handleAddNew = () => {
@@ -139,115 +98,101 @@ const ProgramsTab = () => {
     setDialogOpen(true);
   };
 
-  const handleEdit = (program: Program) => {
-    setEditingProgram(program);
+  const handleEdit = (subcategory: Subcategory) => {
+    setEditingSubcategory(subcategory);
     setFormData({
-      category_id: program.category_id,
-      subcategory_id: program.subcategory_id || '',
-      name_english: program.name_english,
-      name_malayalam: program.name_malayalam,
-      description: program.description || '',
-      display_order: program.display_order,
-      is_active: program.is_active,
+      category_id: subcategory.category_id,
+      name_english: subcategory.name_english,
+      name_malayalam: subcategory.name_malayalam,
+      description: subcategory.description || '',
+      display_order: subcategory.display_order,
+      is_active: subcategory.is_active,
     });
-    if (program.category_id) {
-      fetchSubcategories(program.category_id);
-    }
     setDialogOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.subcategory_id || !formData.name_english || !formData.name_malayalam) {
+    if (!formData.category_id || !formData.name_english || !formData.name_malayalam) {
       toast.error('Please fill in all required fields');
       return;
     }
 
     try {
-      const submitData = {
-        subcategory_id: formData.subcategory_id,
-        name_english: formData.name_english,
-        name_malayalam: formData.name_malayalam,
-        description: formData.description,
-        display_order: formData.display_order,
-        is_active: formData.is_active,
-      };
-
-      if (editingProgram) {
+      if (editingSubcategory) {
         const { error } = await (supabase as any)
-          .from('programs')
-          .update(submitData)
-          .eq('id', editingProgram.id);
+          .from('subcategories')
+          .update(formData)
+          .eq('id', editingSubcategory.id);
 
         if (error) throw error;
-        toast.success('Program updated successfully');
+        toast.success('Subcategory updated successfully');
       } else {
         const { error } = await (supabase as any)
-          .from('programs')
-          .insert([submitData]);
+          .from('subcategories')
+          .insert([formData]);
 
         if (error) throw error;
-        toast.success('Program created successfully');
+        toast.success('Subcategory created successfully');
       }
 
       setDialogOpen(false);
       resetForm();
-      fetchPrograms();
+      fetchSubcategories();
     } catch (error) {
-      console.error('Error saving program:', error);
-      toast.error('Failed to save program');
+      console.error('Error saving subcategory:', error);
+      toast.error('Failed to save subcategory');
     }
   };
 
-  const toggleProgramStatus = async (id: string, currentStatus: boolean) => {
+  const toggleSubcategoryStatus = async (id: string, currentStatus: boolean) => {
     try {
       const { error } = await (supabase as any)
-        .from('programs')
+        .from('subcategories')
         .update({ is_active: !currentStatus })
         .eq('id', id);
 
       if (error) throw error;
-      toast.success('Program status updated');
-      fetchPrograms();
+      toast.success('Subcategory status updated');
+      fetchSubcategories();
     } catch (error) {
-      console.error('Error updating program status:', error);
-      toast.error('Failed to update program status');
+      console.error('Error updating subcategory status:', error);
+      toast.error('Failed to update subcategory status');
     }
   };
 
-  const deleteProgram = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this program?')) return;
+  const deleteSubcategory = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this subcategory?')) return;
 
     try {
       const { error } = await (supabase as any)
-        .from('programs')
+        .from('subcategories')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
-      toast.success('Program deleted successfully');
-      fetchPrograms();
+      toast.success('Subcategory deleted successfully');
+      fetchSubcategories();
     } catch (error) {
-      console.error('Error deleting program:', error);
-      toast.error('Failed to delete program');
+      console.error('Error deleting subcategory:', error);
+      toast.error('Failed to delete subcategory');
     }
   };
 
-  const getSubcategoryName = (subcategoryId: string | null) => {
-    if (!subcategoryId) return 'No Subcategory';
-    const subcategory = subcategories.find(s => s.id === subcategoryId);
-    return subcategory?.name_english || 'Unknown Subcategory';
+  const getCategoryName = (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    return category?.name_english || 'Unknown Category';
   };
 
-  const groupedPrograms = programs.reduce((acc, program) => {
-    const subcategoryId = program.subcategory_id || 'none';
-    if (!acc[subcategoryId]) {
-      acc[subcategoryId] = [];
+  const groupedSubcategories = subcategories.reduce((acc, subcategory) => {
+    const categoryId = subcategory.category_id;
+    if (!acc[categoryId]) {
+      acc[categoryId] = [];
     }
-    acc[subcategoryId].push(program);
+    acc[categoryId].push(subcategory);
     return acc;
-  }, {} as Record<string, Program[]>);
+  }, {} as Record<string, Subcategory[]>);
 
   return (
     <div className="space-y-6">
@@ -255,54 +200,54 @@ const ProgramsTab = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>Programs & Sub-Categories</CardTitle>
-              <CardDescription>Manage programs and sub-categories for job categories</CardDescription>
+              <CardTitle>Subcategories</CardTitle>
+              <CardDescription>Manage subcategories under job categories</CardDescription>
             </div>
             <Button onClick={handleAddNew}>
               <Plus className="mr-2 h-4 w-4" />
-              Add Program
+              Add Subcategory
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-center py-8 text-muted-foreground">Loading programs...</p>
-          ) : Object.keys(groupedPrograms).length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">No programs added yet.</p>
+            <p className="text-center py-8 text-muted-foreground">Loading subcategories...</p>
+          ) : Object.keys(groupedSubcategories).length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground">No subcategories added yet.</p>
           ) : (
             <div className="space-y-6">
-              {Object.entries(groupedPrograms).map(([subcategoryId, subcategoryPrograms]) => (
-                <div key={subcategoryId} className="border rounded-lg p-4">
-                  <h3 className="text-lg font-semibold mb-4">{getSubcategoryName(subcategoryId !== 'none' ? subcategoryId : null)}</h3>
+              {Object.entries(groupedSubcategories).map(([categoryId, categorySubcategories]) => (
+                <div key={categoryId} className="border rounded-lg p-4">
+                  <h3 className="text-lg font-semibold mb-4">{getCategoryName(categoryId)}</h3>
                   <div className="space-y-2">
-                    {subcategoryPrograms.map((program) => (
+                    {categorySubcategories.map((subcategory) => (
                       <div
-                        key={program.id}
+                        key={subcategory.id}
                         className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
                       >
                         <div className="flex-1">
-                          <p className="font-medium">{program.name_english}</p>
-                          <p className="text-sm text-muted-foreground">{program.name_malayalam}</p>
-                          {program.description && (
-                            <p className="text-xs text-muted-foreground mt-1">{program.description}</p>
+                          <p className="font-medium">{subcategory.name_english}</p>
+                          <p className="text-sm text-muted-foreground">{subcategory.name_malayalam}</p>
+                          {subcategory.description && (
+                            <p className="text-xs text-muted-foreground mt-1">{subcategory.description}</p>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
                           <Switch
-                            checked={program.is_active}
-                            onCheckedChange={() => toggleProgramStatus(program.id, program.is_active)}
+                            checked={subcategory.is_active}
+                            onCheckedChange={() => toggleSubcategoryStatus(subcategory.id, subcategory.is_active)}
                           />
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => handleEdit(program)}
+                            onClick={() => handleEdit(subcategory)}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => deleteProgram(program.id)}
+                            onClick={() => deleteSubcategory(subcategory.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -320,14 +265,14 @@ const ProgramsTab = () => {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editingProgram ? 'Edit Program' : 'Add New Program'}</DialogTitle>
+            <DialogTitle>{editingSubcategory ? 'Edit Subcategory' : 'Add New Subcategory'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="category">Category *</Label>
               <Select
                 value={formData.category_id}
-                onValueChange={(value) => setFormData({ ...formData, category_id: value, subcategory_id: '' })}
+                onValueChange={(value) => setFormData({ ...formData, category_id: value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a category" />
@@ -336,26 +281,6 @@ const ProgramsTab = () => {
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       {category.name_english}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="subcategory">Subcategory *</Label>
-              <Select
-                value={formData.subcategory_id}
-                onValueChange={(value) => setFormData({ ...formData, subcategory_id: value })}
-                disabled={!formData.category_id}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a subcategory" />
-                </SelectTrigger>
-                <SelectContent>
-                  {subcategories.map((subcategory) => (
-                    <SelectItem key={subcategory.id} value={subcategory.id}>
-                      {subcategory.name_english}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -413,7 +338,7 @@ const ProgramsTab = () => {
 
             <div className="flex gap-2 pt-4">
               <Button type="submit" className="flex-1">
-                {editingProgram ? 'Update' : 'Create'} Program
+                {editingSubcategory ? 'Update' : 'Create'} Subcategory
               </Button>
               <Button
                 type="button"
@@ -431,4 +356,4 @@ const ProgramsTab = () => {
   );
 };
 
-export default ProgramsTab;
+export default SubcategoriesTab;
